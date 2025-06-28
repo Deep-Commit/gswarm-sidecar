@@ -1,0 +1,14 @@
+{
+    "recommendations": [
+        "golang.go",
+        "ms-vscode.vscode-json",
+        "redhat.vscode-yaml",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-docker",
+        "ms-azuretools.vscode-docker",
+        "streetsidesoftware.code-spell-checker",
+        "ms-vscode.vscode-markdownlint",
+        "eamodio.gitlens",
+        "ms-vscode.vscode-github-issue-notebooks"
+    ]
+}

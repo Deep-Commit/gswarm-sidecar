@@ -33,10 +33,17 @@ gswarm-sidecar/
 │       └── monitor.go           # System resource monitoring
 ├── configs/
 │   └── config.yaml              # Configuration file
+├── .github/workflows/           # CI/CD workflows
+├── .vscode/                     # VS Code workspace settings
 ├── Dockerfile                   # Container definition
 ├── docker-compose.yml           # Deployment configuration
 ├── go.mod                       # Go module dependencies
-└── README.md                    # This file
+├── Makefile                     # Development tasks
+├── .golangci.yml               # Linting configuration
+├── .pre-commit-config.yaml     # Pre-commit hooks
+├── .editorconfig               # Editor configuration
+├── DEVELOPMENT.md              # Development guide
+└── README.md                   # This file
 ```
 
 ## Features
@@ -52,21 +59,60 @@ gswarm-sidecar/
 
 ## Quick Start
 
-1. **Build and run with Docker Compose:**
+1. **Setup development environment:**
    ```bash
-   docker-compose up --build
+   make setup
+   pre-commit install
    ```
 
-2. **Run locally:**
+2. **Build and run with Docker Compose:**
    ```bash
-   go mod download
-   go run cmd/monitor/main.go
+   make docker-run
    ```
 
-3. **Access health endpoint:**
+3. **Run locally:**
+   ```bash
+   make run
+   ```
+
+4. **Access health endpoint:**
    ```bash
    curl http://localhost:8080/health
    ```
+
+## Development Tools
+
+This project uses several development tools to maintain code quality and consistency:
+
+### Makefile Commands
+```bash
+make help          # Show all available commands
+make setup         # Install tools and dependencies
+make build         # Build the application
+make test          # Run tests
+make test-coverage # Run tests with coverage report
+make lint          # Run linter
+make format        # Format code
+make clean         # Clean build artifacts
+make run           # Run the application
+make docker-build  # Build Docker image
+make docker-run    # Run with Docker Compose
+make pre-commit    # Run all pre-commit checks
+```
+
+### Code Quality Tools
+- **golangci-lint**: Comprehensive Go linting with multiple linters
+- **Pre-commit hooks**: Automated code quality checks before commits
+- **EditorConfig**: Consistent coding style across editors
+- **VS Code settings**: Optimized workspace configuration for Go development
+
+### Continuous Integration
+- **GitHub Actions**: Automated testing, linting, and building
+- **Multi-version testing**: Tests against Go 1.24 and 1.25
+- **Security scanning**: Automated security checks with gosec
+- **Docker builds**: Automated Docker image building
+
+For detailed development information, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Configuration
 

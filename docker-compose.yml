@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  gswarm-sidecar:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./data:/app/data
+    environment:
+      - CONFIG_PATH=/app/configs/config.yaml
+    restart: unless-stopped 

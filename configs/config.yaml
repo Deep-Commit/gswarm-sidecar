@@ -1,0 +1,22 @@
+logs:
+  swarm_log_path: "./logs/swarm.log"
+  yarn_log_path: "./logs/yarn.log"
+  wandb_log_path: "./logs/wandb/"
+
+dht:
+  bootstrap_peers:
+    - "/ip4/127.0.0.1/tcp/8001/p2p/QmBootstrap1"
+    - "/ip4/127.0.0.1/tcp/8002/p2p/QmBootstrap2"
+  port: 8000
+
+blockchain:
+  contract_address: "0xFaD7C5e93f28257429569B854151A1B8DCD404c2"
+  rpc_url: "https://gensyn-testnet.g.alchemy.com/public"
+  chain_id: 685685
+
+system:
+  metrics_interval: 30
+  health_port: 8080
+
+storage:
+  data_path: "./data" 

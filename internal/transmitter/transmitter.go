@@ -85,12 +85,16 @@ func (t *Transmitter) sendWithRetry(req *http.Request) error {
 		}
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			resp.Body.Close()
+			if err := resp.Body.Close(); err != nil {
+				fmt.Printf("failed to close response body: %v\n", err)
+			}
 			return nil
 		}
 
 		lastErr = fmt.Errorf("API returned status %d", resp.StatusCode)
-		resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			fmt.Printf("failed to close response body: %v\n", err)
+		}
 		if i < t.cfg.API.RetryCount {
 			time.Sleep(time.Duration(i+1) * time.Second)
 			continue

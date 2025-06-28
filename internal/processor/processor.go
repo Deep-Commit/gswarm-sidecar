@@ -2,6 +2,7 @@ package processor
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"gswarm-sidecar/internal/transmitter"
@@ -98,7 +99,11 @@ func (p *Processor) ProcessLogs(ctx context.Context, metrics *LogMetrics) error 
 		},
 	}
 
-	return p.transmitter.SendMetrics(ctx, data)
+	err := p.transmitter.SendMetrics(ctx, data)
+	if err != nil {
+		return fmt.Errorf("failed to send log metrics: %w", err)
+	}
+	return nil
 }
 
 func (p *Processor) ProcessDHT(ctx context.Context, metrics *DHTMetrics) error {
@@ -113,7 +118,11 @@ func (p *Processor) ProcessDHT(ctx context.Context, metrics *DHTMetrics) error {
 		},
 	}
 
-	return p.transmitter.SendMetrics(ctx, data)
+	err := p.transmitter.SendMetrics(ctx, data)
+	if err != nil {
+		return fmt.Errorf("failed to send DHT metrics: %w", err)
+	}
+	return nil
 }
 
 func (p *Processor) ProcessBlockchain(ctx context.Context, metrics *BlockchainMetrics) error {
@@ -128,7 +137,11 @@ func (p *Processor) ProcessBlockchain(ctx context.Context, metrics *BlockchainMe
 		},
 	}
 
-	return p.transmitter.SendMetrics(ctx, data)
+	err := p.transmitter.SendMetrics(ctx, data)
+	if err != nil {
+		return fmt.Errorf("failed to send blockchain metrics: %w", err)
+	}
+	return nil
 }
 
 func (p *Processor) ProcessSystem(ctx context.Context, metrics *SystemMetrics) error {
@@ -144,7 +157,11 @@ func (p *Processor) ProcessSystem(ctx context.Context, metrics *SystemMetrics) e
 		},
 	}
 
-	return p.transmitter.SendMetrics(ctx, data)
+	err := p.transmitter.SendMetrics(ctx, data)
+	if err != nil {
+		return fmt.Errorf("failed to send system metrics: %w", err)
+	}
+	return nil
 }
 
 func (p *Processor) SendHealth(ctx context.Context, status, details string) error {
@@ -155,5 +172,9 @@ func (p *Processor) SendHealth(ctx context.Context, status, details string) erro
 		Details:   details,
 	}
 
-	return p.transmitter.SendHealth(ctx, data)
+	err := p.transmitter.SendHealth(ctx, data)
+	if err != nil {
+		return fmt.Errorf("failed to send health data: %w", err)
+	}
+	return nil
 }

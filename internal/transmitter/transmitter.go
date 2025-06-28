@@ -41,12 +41,12 @@ func New(cfg *config.Config) *Transmitter {
 	}
 }
 
-func (t *Transmitter) SendMetrics(ctx context.Context, data *MetricsData) error {
-	url := fmt.Sprintf("%s%s", t.cfg.API.BaseURL, t.cfg.API.MetricsEndpoint)
+func (t *Transmitter) sendJSON(ctx context.Context, endpoint string, payload interface{}) error {
+	url := fmt.Sprintf("%s%s", t.cfg.API.BaseURL, endpoint)
 
-	jsonData, err := json.Marshal(data)
+	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("failed to marshal metrics data: %w", err)
+		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
@@ -62,25 +62,12 @@ func (t *Transmitter) SendMetrics(ctx context.Context, data *MetricsData) error 
 	return t.sendWithRetry(req)
 }
 
+func (t *Transmitter) SendMetrics(ctx context.Context, data *MetricsData) error {
+	return t.sendJSON(ctx, t.cfg.API.MetricsEndpoint, data)
+}
+
 func (t *Transmitter) SendHealth(ctx context.Context, data *HealthData) error {
-	url := fmt.Sprintf("%s%s", t.cfg.API.BaseURL, t.cfg.API.HealthEndpoint)
-
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal health data: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	if t.cfg.API.AuthToken != "" {
-		req.Header.Set("Authorization", "Bearer "+t.cfg.API.AuthToken)
-	}
-
-	return t.sendWithRetry(req)
+	return t.sendJSON(ctx, t.cfg.API.HealthEndpoint, data)
 }
 
 func (t *Transmitter) sendWithRetry(req *http.Request) error {
@@ -96,13 +83,14 @@ func (t *Transmitter) sendWithRetry(req *http.Request) error {
 			}
 			return lastErr
 		}
-		defer resp.Body.Close()
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			resp.Body.Close()
 			return nil
 		}
 
 		lastErr = fmt.Errorf("API returned status %d", resp.StatusCode)
+		resp.Body.Close()
 		if i < t.cfg.API.RetryCount {
 			time.Sleep(time.Duration(i+1) * time.Second)
 			continue

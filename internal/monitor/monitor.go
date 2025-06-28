@@ -13,6 +13,8 @@ import (
 	"gswarm-sidecar/internal/transmitter"
 )
 
+const numMonitors = 4
+
 type Monitor struct {
 	cfg         *config.Config
 	logs        *logs.Monitor
@@ -49,7 +51,7 @@ func (m *Monitor) Start() error {
 	m.system = system.New(m.cfg, m.processor)
 
 	// Start monitoring components
-	m.wg.Add(4)
+	m.wg.Add(numMonitors)
 
 	go func() {
 		defer m.wg.Done()

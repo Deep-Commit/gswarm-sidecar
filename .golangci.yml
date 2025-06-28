@@ -30,17 +30,32 @@ linters-settings:
       - octalLiteral
       - whyNoLint
       - wrapperFunc
+  depguard:
+    rules:
+      main:
+        files:
+          - "cmd/**/*.go"
+        allow:
+          - gopkg.in/yaml.v3
+          - gswarm-sidecar/internal/**
+      test:
+        files:
+          - "*_test.go"
+          - "**/*_test.go"
+        allow:
+          - gopkg.in/yaml.v3
+          - gswarm-sidecar/internal/**
+          - testing
+          - github.com/stretchr/testify/**
 
 linters:
   disable-all: true
   enable:
     - bodyclose
-    - deadcode
-    - depguard
+    - copyloopvar
     - dogsled
     - dupl
     - errcheck
-    - exportloopref
     - exhaustive
     - forbidigo
     - funlen
@@ -49,10 +64,9 @@ linters:
     - gocritic
     - gocyclo
     - gofmt
-    - gofumpt
     - goheader
     - goimports
-    - gomnd
+    - mnd
     - gomodguard
     - goprintffuncname
     - gosec
@@ -71,7 +85,6 @@ linters:
     - revive
     - rowserrcheck
     - staticcheck
-    - structcheck
     - stylecheck
     - thelper
     - tparallel
@@ -79,7 +92,6 @@ linters:
     - unconvert
     - unparam
     - unused
-    - varcheck
     - whitespace
     - wrapcheck
 
@@ -87,7 +99,7 @@ issues:
   exclude-rules:
     - path: _test\.go
       linters:
-        - gomnd
+        - mnd
         - goconst
         - funlen
         - gocyclo
@@ -122,4 +134,4 @@ issues:
       text: "G601"
       path: internal/blockchain/
   max-issues-per-linter: 0
-  max-same-issues: 0 
+  max-same-issues: 0

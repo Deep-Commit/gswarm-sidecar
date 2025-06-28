@@ -8,15 +8,19 @@ import (
 	"gswarm-sidecar/internal/config"
 	"gswarm-sidecar/internal/dht"
 	"gswarm-sidecar/internal/logs"
+	"gswarm-sidecar/internal/processor"
 	"gswarm-sidecar/internal/system"
+	"gswarm-sidecar/internal/transmitter"
 )
 
 type Monitor struct {
-	cfg        *config.Config
-	logs       *logs.Monitor
-	dht        *dht.Monitor
-	blockchain *blockchain.Monitor
-	system     *system.Monitor
+	cfg         *config.Config
+	logs        *logs.Monitor
+	dht         *dht.Monitor
+	blockchain  *blockchain.Monitor
+	system      *system.Monitor
+	processor   *processor.Processor
+	transmitter *transmitter.Transmitter
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -34,11 +38,15 @@ func New(cfg *config.Config) *Monitor {
 }
 
 func (m *Monitor) Start() error {
-	// Initialize components
-	m.logs = logs.New(m.cfg)
-	m.dht = dht.New(m.cfg)
-	m.blockchain = blockchain.New(m.cfg)
-	m.system = system.New(m.cfg)
+	// Initialize transmitter and processor
+	m.transmitter = transmitter.New(m.cfg)
+	m.processor = processor.New(m.transmitter, "gensyn-node-001") // TODO: Get actual node ID
+
+	// Initialize monitoring components
+	m.logs = logs.New(m.cfg, m.processor)
+	m.dht = dht.New(m.cfg, m.processor)
+	m.blockchain = blockchain.New(m.cfg, m.processor)
+	m.system = system.New(m.cfg, m.processor)
 
 	// Start monitoring components
 	m.wg.Add(4)

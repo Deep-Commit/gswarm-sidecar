@@ -32,6 +32,15 @@ type Config struct {
 	Storage struct {
 		DataPath string `yaml:"data_path"`
 	} `yaml:"storage"`
+
+	API struct {
+		BaseURL         string `yaml:"base_url"`
+		MetricsEndpoint string `yaml:"metrics_endpoint"`
+		HealthEndpoint  string `yaml:"health_endpoint"`
+		AuthToken       string `yaml:"auth_token"`
+		Timeout         int    `yaml:"timeout"`
+		RetryCount      int    `yaml:"retry_count"`
+	} `yaml:"api"`
 }
 
 func Load() (*Config, error) {

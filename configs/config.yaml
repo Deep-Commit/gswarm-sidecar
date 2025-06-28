@@ -19,4 +19,12 @@ system:
   health_port: 8080
 
 storage:
-  data_path: "./data" 
+  data_path: "./data"
+
+api:
+  base_url: "https://api.gswarm.example.com"
+  metrics_endpoint: "/api/v1/metrics"
+  health_endpoint: "/api/v1/health"
+  auth_token: "your-api-token-here"
+  timeout: 30
+  retry_count: 3 

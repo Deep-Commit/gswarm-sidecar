@@ -1,10 +1,10 @@
-# RL Swarm Side Car Monitoring System
+# GSwarm Side Car Monitoring System
 
-A Go-based side car monitoring system for monitoring **Gensyn AI nodes** in the RL Swarm distributed training network. This system collects metrics from running Gensyn AI swarm nodes without modifying the existing codebase, providing real-time data to feed into the gswarm UI.
+A Go-based side car monitoring system for monitoring **Gensyn AI nodes** in the GSwarm distributed training network. This system collects metrics from running Gensyn AI swarm nodes without modifying the existing codebase, providing real-time data to feed into the gswarm UI.
 
 ## Overview
 
-The RL Swarm Side Car Monitoring System is designed to monitor Gensyn AI nodes that participate in distributed training tasks. It provides comprehensive monitoring capabilities for:
+The GSwarm Side Car Monitoring System is designed to monitor Gensyn AI nodes that participate in distributed training tasks. It provides comprehensive monitoring capabilities for:
 
 - **Gensyn AI Node Performance**: Track training progress, model updates, and node health
 - **Distributed Training Metrics**: Monitor peer-to-peer communication and model synchronization

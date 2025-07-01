@@ -141,3 +141,103 @@ This is a bare bones structure. Each component (logs, dht, blockchain, system) c
 ## License
 
 See LICENSE file for details.
+
+## Log File Monitoring and Central API Posting
+
+This feature enables real-time monitoring of RL Swarm log files and posts key metrics/events to a central API endpoint for aggregation and analysis.
+
+### Monitored Log Files
+- `<RL Swarm root>/logs/swarm.log` — Main RL Swarm log (training progress, peer events, errors)
+- `<RL Swarm root>/logs/yarn.log` — Modal login server log (authentication events, login issues)
+- (Optional) `<RL Swarm root>/logs/wandb/debug.log` — Weights & Biases debug log (advanced metrics, debug info)
+
+> **Note:** By default, only `swarm.log` and `yarn.log` are monitored, as Weights & Biases provides its own UI.
+
+### How It Works
+- The system tails the log files in real time.
+- Each new line is parsed for relevant events/metrics.
+- Extracted events are sent as JSON payloads to a central API endpoint.
+- Handles network errors, retries (with backoff), and batching.
+- Configuration is managed via `configs/config.yaml`.
+
+### Example Event JSON Structure
+```json
+{
+  "node_id": "node-123",
+  "timestamp": "2024-06-07T12:34:56Z",
+  "event_type": "training_progress",
+  "details": {
+    "epoch": 5,
+    "accuracy": 0.92
+  }
+}
+```
+
+### Configuration (`configs/config.yaml`)
+```yaml
+api_endpoint: "https://central-api.example.com/gswarm/metrics"
+auth_token: "YOUR_BEARER_TOKEN_HERE"  # Optional
+batch_size: 10                          # Number of events to batch per POST
+log_files:
+  - "/path/to/rl-swarm/logs/swarm.log"
+  - "/path/to/rl-swarm/logs/yarn.log"
+  # - "/path/to/rl-swarm/logs/wandb/debug.log"  # Uncomment to enable
+```
+
+- `api_endpoint`: URL of the central API to receive metrics/events
+- `auth_token`: Bearer token for authentication (optional)
+- `batch_size`: Number of events to send in each POST (default: 10)
+- `log_files`: List of log files to monitor
+
+### Security
+- If `auth_token` is set, an `Authorization: Bearer <token>` header is added to each request.
+- Use HTTPS for secure transmission.
+
+### Testing
+- You can set `api_endpoint` to a mock server for local testing.
+- All failed POSTs are logged and retried with exponential backoff.
+
+### Example Go Posting Skeleton
+```go
+package logs
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "time"
+)
+
+type MetricEvent struct {
+    NodeID    string                 `json:"node_id"`
+    Timestamp time.Time              `json:"timestamp"`
+    EventType string                 `json:"event_type"`
+    Details   map[string]interface{} `json:"details"`
+}
+
+func postMetricEvent(apiURL, authToken string, event MetricEvent) error {
+    data, err := json.Marshal(event)
+    if err != nil {
+        return err
+    }
+    req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(data))
+    if err != nil {
+        return err
+    }
+    req.Header.Set("Content-Type", "application/json")
+    if authToken != "" {
+        req.Header.Set("Authorization", "Bearer "+authToken)
+    }
+    client := &http.Client{Timeout: 5 * time.Second}
+    resp, err := client.Do(req)
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+    if resp.StatusCode >= 300 {
+        return fmt.Errorf("API returned status %d", resp.StatusCode)
+    }
+    return nil
+}
+```

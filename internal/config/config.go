@@ -42,6 +42,15 @@ type Config struct {
 		Timeout         int    `yaml:"timeout"`
 		RetryCount      int    `yaml:"retry_count"`
 	} `yaml:"api"`
+
+	LogMonitoring struct {
+		APIEndpoint string   `yaml:"api_endpoint"`
+		AuthToken   string   `yaml:"auth_token"`
+		BatchSize   int      `yaml:"batch_size"`
+		LogFiles    []string `yaml:"log_files"`
+	} `yaml:"log_monitoring"`
+
+	NodeID string `yaml:"node_id"`
 }
 
 func Load() (*Config, error) {

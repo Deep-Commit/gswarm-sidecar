@@ -27,4 +27,15 @@ api:
   health_endpoint: "/api/v1/health"
   auth_token: "your-api-token-here"
   timeout: 30
-  retry_count: 3 
+  retry_count: 3
+
+log_monitoring:
+  api_endpoint: "https://central-api.example.com/gswarm/metrics"
+  auth_token: "YOUR_BEARER_TOKEN_HERE"  # Optional
+  batch_size: 10                          # Number of events to batch per POST
+  log_files:
+    - "./logs/swarm.log"
+    - "./logs/yarn.log"
+    # - "./logs/wandb/debug.log"  # Uncomment to enable
+
+node_id: "my-node-123"

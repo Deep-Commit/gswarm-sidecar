@@ -48,6 +48,7 @@ func New(cfg *config.Config, processor *processor.Processor) *Monitor {
 func (m *Monitor) Start(ctx context.Context) {
 	var wg sync.WaitGroup
 	for _, logPath := range m.cfg.LogMonitoring.LogFiles {
+		log.Printf("[INFO] Starting to tail log file: %s", logPath)
 		wg.Add(1)
 		go func(path string) {
 			defer wg.Done()
@@ -61,25 +62,33 @@ func (m *Monitor) Start(ctx context.Context) {
 func (m *Monitor) tailLogFile(ctx context.Context, path string) {
 	t, err := tail.TailFile(path, tail.Config{Follow: true, ReOpen: true, Logger: tail.DiscardingLogger})
 	if err != nil {
-		log.Printf("Failed to tail log file %s: %v\n", path, err)
+		log.Printf("[ERROR] Failed to tail log file %s: %v\n", path, err)
 		return
 	}
+	log.Printf("[INFO] Successfully tailing log file: %s", path)
 	batch := make([]MetricEvent, 0, m.cfg.LogMonitoring.BatchSize)
 	for {
 		select {
 		case <-ctx.Done():
+			log.Printf("[INFO] Context done, stopping tail for file: %s", path)
 			return
 		case line := <-t.Lines:
 			if line == nil {
+				log.Printf("[WARN] Received nil line from tail for file: %s", path)
 				continue
 			}
+			log.Printf("[DEBUG] Read new line from %s: %s", path, line.Text)
 			event := parseSwarmLogLine(line.Text, m.cfg)
 			if event != nil {
+				log.Printf("[DEBUG] Created MetricEvent: %+v", *event)
 				batch = append(batch, *event)
 				if len(batch) >= m.cfg.LogMonitoring.BatchSize {
+					log.Printf("[INFO] Batch size reached (%d), sending batch", m.cfg.LogMonitoring.BatchSize)
 					m.postBatch(ctx, batch)
 					batch = batch[:0]
 				}
+			} else {
+				log.Printf("[DEBUG] Skipped line (did not produce MetricEvent): %s", line.Text)
 			}
 		}
 	}
@@ -89,10 +98,12 @@ func (m *Monitor) tailLogFile(ctx context.Context, path string) {
 func parseSwarmLogLine(line string, cfg *config.Config) *MetricEvent {
 	parts := strings.SplitN(line, " - ", splitPartsFull)
 	if len(parts) < splitPartsFull {
+		log.Printf("[DEBUG] Line does not match expected format, skipping: %s", line)
 		return nil // skip lines that don't match expected format
 	}
 	ts, err := time.Parse("2006-01-02 15:04:05,000", parts[0])
 	if err != nil {
+		log.Printf("[WARN] Failed to parse timestamp, using current time. Line: %s, Error: %v", line, err)
 		ts = time.Now()
 	}
 	level := strings.TrimSpace(parts[1])
@@ -102,6 +113,7 @@ func parseSwarmLogLine(line string, cfg *config.Config) *MetricEvent {
 	// Special case: peer join event
 	if strings.Contains(msg, "Joining swarm with initial_peers") {
 		peers := extractPeersFromLine(msg)
+		log.Printf("[DEBUG] Detected peer join event. Peers: %v", peers)
 		return &MetricEvent{
 			NodeID:    cfg.NodeID,
 			Timestamp: ts,
@@ -143,6 +155,7 @@ func extractPeersFromLine(line string) []string {
 	start := strings.Index(line, "[")
 	end := strings.Index(line, "]")
 	if start == -1 || end == -1 || end <= start {
+		log.Printf("[DEBUG] Could not extract peers from line: %s", line)
 		return nil
 	}
 	peersStr := line[start+1 : end]
@@ -157,7 +170,7 @@ func extractPeersFromLine(line string) []string {
 func (m *Monitor) postBatch(ctx context.Context, batch []MetricEvent) {
 	data, err := json.MarshalIndent(batch, "", "  ")
 	if err != nil {
-		log.Printf("Failed to marshal batch: %v\n", err)
+		log.Printf("[ERROR] Failed to marshal batch: %v\n", err)
 		return
 	}
 
@@ -168,7 +181,7 @@ func (m *Monitor) postBatch(ctx context.Context, batch []MetricEvent) {
 	authToken := m.cfg.JWTToken
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(data))
 	if err != nil {
-		log.Printf("Failed to create request: %v\n", err)
+		log.Printf("[ERROR] Failed to create request: %v\n", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -178,7 +191,7 @@ func (m *Monitor) postBatch(ctx context.Context, batch []MetricEvent) {
 	client := &http.Client{Timeout: batchPostTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("Failed to POST batch: %v\n", err)
+		log.Printf("[ERROR] Failed to POST batch: %v\n", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -188,6 +201,8 @@ func (m *Monitor) postBatch(ctx context.Context, batch []MetricEvent) {
 	log.Printf("[DEBUG] API response status: %d, body: %s\n", resp.StatusCode, string(respBody))
 
 	if resp.StatusCode >= statusCodeError {
-		log.Printf("API returned status %d\n", resp.StatusCode)
+		log.Printf("[ERROR] API returned status %d\n", resp.StatusCode)
+	} else {
+		log.Printf("[INFO] Successfully posted batch of %d events", len(batch))
 	}
 }

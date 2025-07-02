@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -160,6 +161,9 @@ func (m *Monitor) postBatch(ctx context.Context, batch []MetricEvent) {
 		return
 	}
 
+	// Debug: print the batch payload being sent
+	log.Printf("[DEBUG] Sending batch payload: %s\n", string(data))
+
 	apiURL := m.cfg.LogMonitoring.APIEndpoint
 	authToken := m.cfg.JWTToken
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(data))
@@ -178,6 +182,11 @@ func (m *Monitor) postBatch(ctx context.Context, batch []MetricEvent) {
 		return
 	}
 	defer resp.Body.Close()
+
+	// Debug: print the response status and body
+	respBody, _ := io.ReadAll(resp.Body)
+	log.Printf("[DEBUG] API response status: %d, body: %s\n", resp.StatusCode, string(respBody))
+
 	if resp.StatusCode >= statusCodeError {
 		log.Printf("API returned status %d\n", resp.StatusCode)
 	}

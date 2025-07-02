@@ -1,43 +1,15 @@
+node_id: "my-node-123"
+jwt_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  # <-- Replace with your actual JWT
+
 logs:
   swarm_log_path: "./logs/swarm.log"
   yarn_log_path: "./logs/yarn.log"
   wandb_log_path: "./logs/wandb/"
 
-dht:
-  bootstrap_peers:
-    - "/ip4/127.0.0.1/tcp/8001/p2p/QmBootstrap1"
-    - "/ip4/127.0.0.1/tcp/8002/p2p/QmBootstrap2"
-  port: 8000
-
-blockchain:
-  contract_address: "0xFaD7C5e93f28257429569B854151A1B8DCD404c2"
-  rpc_url: "https://gensyn-testnet.g.alchemy.com/public"
-  chain_id: 685685
-
-system:
-  metrics_interval: 30
-  health_port: 8080
-
-storage:
-  data_path: "./data"
-
-api:
-  base_url: "https://api.gswarm.example.com"
-  metrics_endpoint: "/api/v1/metrics"
-  health_endpoint: "/api/v1/health"
-  auth_token: "your-api-token-here"
-  timeout: 30
-  retry_count: 3
-
 log_monitoring:
-  api_endpoint: "https://central-api.example.com/gswarm/metrics"
-  auth_token: "YOUR_BEARER_TOKEN_HERE"  # Optional
-  batch_size: 10                          # Number of events to batch per POST
+  api_endpoint: "https://h9oy4hruxf.execute-api.us-east-1.amazonaws.com/prod/v1/ingest"
+  batch_size: 10
   log_files:
     - "./logs/swarm.log"
     - "./logs/yarn.log"
     # - "./logs/wandb/debug.log"  # Uncomment to enable
-
-node_id: "my-node-123"
-
-jwt_token: "<your-node-JWT>"

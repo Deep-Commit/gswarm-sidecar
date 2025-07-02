@@ -98,8 +98,15 @@ func (m *Monitor) tailLogFile(ctx context.Context, path string) {
 func parseSwarmLogLine(line string, cfg *config.Config) *MetricEvent {
 	parts := strings.SplitN(line, " - ", splitPartsFull)
 	if len(parts) < splitPartsFull {
-		log.Printf("[DEBUG] Line does not match expected format, skipping: %s", line)
-		return nil // skip lines that don't match expected format
+		log.Printf("[DEBUG] Line does not match expected format, sending as raw: %s", line)
+		return &MetricEvent{
+			NodeID:    cfg.NodeID,
+			Timestamp: time.Now(),
+			EventType: "raw",
+			Details: map[string]interface{}{
+				"raw_line": line,
+			},
+		}
 	}
 	ts, err := time.Parse("2006-01-02 15:04:05,000", parts[0])
 	if err != nil {

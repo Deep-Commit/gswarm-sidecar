@@ -39,3 +39,5 @@ log_monitoring:
     # - "./logs/wandb/debug.log"  # Uncomment to enable
 
 node_id: "my-node-123"
+
+jwt_token: "<your-node-JWT>"

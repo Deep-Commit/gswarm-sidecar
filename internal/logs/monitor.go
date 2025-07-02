@@ -161,7 +161,7 @@ func (m *Monitor) postBatch(ctx context.Context, batch []MetricEvent) {
 	}
 
 	apiURL := m.cfg.LogMonitoring.APIEndpoint
-	authToken := m.cfg.LogMonitoring.AuthToken
+	authToken := m.cfg.JWTToken
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(data))
 	if err != nil {
 		log.Printf("Failed to create request: %v\n", err)

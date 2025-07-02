@@ -51,6 +51,7 @@ type Config struct {
 	} `yaml:"log_monitoring"`
 
 	NodeID string `yaml:"node_id"`
+	JWTToken string `yaml:"jwt_token"`
 }
 
 func Load() (*Config, error) {

@@ -5,8 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -36,7 +39,33 @@ const (
 	splitPartsShort  = 2
 	batchPostTimeout = 5 * time.Second
 	statusCodeError  = 300
+	offsetsFile      = "sidecar_offsets.json"
 )
+
+type fileOffsets map[string]int64
+
+func loadOffsets() (fileOffsets, error) {
+	data, err := ioutil.ReadFile(offsetsFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return make(fileOffsets), nil
+		}
+		return nil, err
+	}
+	var offsets fileOffsets
+	if err := json.Unmarshal(data, &offsets); err != nil {
+		return nil, err
+	}
+	return offsets, nil
+}
+
+func saveOffsets(offsets fileOffsets) error {
+	data, err := json.MarshalIndent(offsets, "", "  ")
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(offsetsFile, data, 0644)
+}
 
 func New(cfg *config.Config, processor *processor.Processor) *Monitor {
 	return &Monitor{
@@ -46,13 +75,18 @@ func New(cfg *config.Config, processor *processor.Processor) *Monitor {
 }
 
 func (m *Monitor) Start(ctx context.Context) {
+	offsets, err := loadOffsets()
+	if err != nil {
+		log.Printf("[ERROR] Failed to load offsets: %v", err)
+		offsets = make(fileOffsets)
+	}
 	var wg sync.WaitGroup
 	for _, logPath := range m.cfg.LogMonitoring.LogFiles {
 		log.Printf("[INFO] Starting to tail log file: %s", logPath)
 		wg.Add(1)
 		go func(path string) {
 			defer wg.Done()
-			m.tailLogFile(ctx, path)
+			m.tailLogFileWithOffset(ctx, path, offsets)
 		}(logPath)
 	}
 	wg.Wait()
@@ -86,6 +120,61 @@ func (m *Monitor) tailLogFile(ctx context.Context, path string) {
 					log.Printf("[INFO] Batch size reached (%d), sending batch", m.cfg.LogMonitoring.BatchSize)
 					m.postBatch(ctx, batch)
 					batch = batch[:0]
+				}
+			} else {
+				log.Printf("[DEBUG] Skipped line (did not produce MetricEvent): %s", line.Text)
+			}
+		}
+	}
+}
+
+// tailLogFileWithOffset tails a log file and processes new lines in real time, with offset tracking
+func (m *Monitor) tailLogFileWithOffset(ctx context.Context, path string, offsets fileOffsets) {
+	// Open file to get offset
+	absPath, _ := filepath.Abs(path)
+	var seekLine int64 = 0
+	if off, ok := offsets[absPath]; ok {
+		seekLine = off
+		log.Printf("[INFO] Seeking to line %d in %s", seekLine, absPath)
+	}
+
+	t, err := tail.TailFile(path, tail.Config{Follow: true, ReOpen: true, Logger: tail.DiscardingLogger})
+	if err != nil {
+		log.Printf("[ERROR] Failed to tail log file %s: %v\n", path, err)
+		return
+	}
+	log.Printf("[INFO] Successfully tailing log file: %s", path)
+	batch := make([]MetricEvent, 0, m.cfg.LogMonitoring.BatchSize)
+	lineNum := int64(0)
+	// Skip lines up to seekLine
+	for lineNum < seekLine {
+		line := <-t.Lines
+		if line == nil {
+			continue
+		}
+		lineNum++
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("[INFO] Context done, stopping tail for file: %s", path)
+			return
+		case line := <-t.Lines:
+			if line == nil {
+				log.Printf("[WARN] Received nil line from tail for file: %s", path)
+				continue
+			}
+			log.Printf("[DEBUG] Read new line from %s: %s", path, line.Text)
+			lineNum++
+			event := parseSwarmLogLine(line.Text, m.cfg)
+			if event != nil {
+				log.Printf("[DEBUG] Created MetricEvent: %+v", *event)
+				batch = append(batch, *event)
+				if len(batch) >= m.cfg.LogMonitoring.BatchSize {
+					log.Printf("[INFO] Batch size reached (%d), sending batch", m.cfg.LogMonitoring.BatchSize)
+					if m.postBatchWithOffset(ctx, batch, absPath, lineNum, offsets) {
+						batch = batch[:0]
+					}
 				}
 			} else {
 				log.Printf("[DEBUG] Skipped line (did not produce MetricEvent): %s", line.Text)
@@ -211,5 +300,51 @@ func (m *Monitor) postBatch(ctx context.Context, batch []MetricEvent) {
 		log.Printf("[ERROR] API returned status %d\n", resp.StatusCode)
 	} else {
 		log.Printf("[INFO] Successfully posted batch of %d events", len(batch))
+	}
+}
+
+// postBatchWithOffset posts a batch of MetricEvents to the API, with offset tracking
+func (m *Monitor) postBatchWithOffset(ctx context.Context, batch []MetricEvent, absPath string, lineNum int64, offsets fileOffsets) bool {
+	data, err := json.MarshalIndent(batch, "", "  ")
+	if err != nil {
+		log.Printf("[ERROR] Failed to marshal batch: %v\n", err)
+		return false
+	}
+
+	log.Printf("[DEBUG] Sending batch payload: %s\n", string(data))
+
+	apiURL := m.cfg.LogMonitoring.APIEndpoint
+	authToken := m.cfg.JWTToken
+	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewBuffer(data))
+	if err != nil {
+		log.Printf("[ERROR] Failed to create request: %v\n", err)
+		return false
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if authToken != "" {
+		req.Header.Set("Authorization", "Bearer "+authToken)
+	}
+	client := &http.Client{Timeout: batchPostTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[ERROR] Failed to POST batch: %v\n", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	log.Printf("[DEBUG] API response status: %d, body: %s\n", resp.StatusCode, string(respBody))
+
+	if resp.StatusCode >= statusCodeError {
+		log.Printf("[ERROR] API returned status %d\n", resp.StatusCode)
+		return false
+	} else {
+		log.Printf("[INFO] Successfully posted batch of %d events", len(batch))
+		offsets[absPath] = lineNum
+		err := saveOffsets(offsets)
+		if err != nil {
+			log.Printf("[ERROR] Failed to save offsets: %v", err)
+		}
+		return true
 	}
 }

@@ -154,10 +154,24 @@ func (m *Monitor) tailLogFileWithOffset(ctx context.Context, path string, offset
 		}
 		lineNum++
 	}
+
+	// Get batch flush interval from config, default to 10s if not set
+	flushInterval := 10 * time.Second
+	if m.cfg.LogMonitoring.BatchFlushInterval > 0 {
+		flushInterval = time.Duration(m.cfg.LogMonitoring.BatchFlushInterval) * time.Second
+	}
+	flushTimer := time.NewTimer(flushInterval)
+	defer flushTimer.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			log.Printf("[INFO] Context done, stopping tail for file: %s", path)
+			// Flush any remaining batch before exit
+			if len(batch) > 0 {
+				log.Printf("[INFO] Flushing remaining batch before exit for file: %s", path)
+				m.postBatchWithOffset(ctx, batch, absPath, lineNum, offsets)
+			}
 			return
 		case line := <-t.Lines:
 			if line == nil {
@@ -175,10 +189,22 @@ func (m *Monitor) tailLogFileWithOffset(ctx context.Context, path string, offset
 					if m.postBatchWithOffset(ctx, batch, absPath, lineNum, offsets) {
 						batch = batch[:0]
 					}
+					flushTimer.Reset(flushInterval)
+				} else {
+					// Reset timer on new line if batch not full
+					flushTimer.Reset(flushInterval)
 				}
 			} else {
 				log.Printf("[DEBUG] Skipped line (did not produce MetricEvent): %s", line.Text)
 			}
+		case <-flushTimer.C:
+			if len(batch) > 0 {
+				log.Printf("[INFO] Batch flush interval reached, sending batch of %d for file: %s", len(batch), path)
+				if m.postBatchWithOffset(ctx, batch, absPath, lineNum, offsets) {
+					batch = batch[:0]
+				}
+			}
+			flushTimer.Reset(flushInterval)
 		}
 	}
 }

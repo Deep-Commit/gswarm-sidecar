@@ -48,6 +48,7 @@ type Config struct {
 		AuthToken   string   `yaml:"auth_token"`
 		BatchSize   int      `yaml:"batch_size"`
 		LogFiles    []string `yaml:"log_files"`
+		BatchFlushInterval int `yaml:"batch_flush_interval"`
 	} `yaml:"log_monitoring"`
 
 	NodeID string `yaml:"node_id"`

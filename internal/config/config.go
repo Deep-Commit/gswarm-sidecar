@@ -47,8 +47,9 @@ type Config struct {
 		APIEndpoint string   `yaml:"api_endpoint"`
 		AuthToken   string   `yaml:"auth_token"`
 		BatchSize   int      `yaml:"batch_size"`
-		LogFiles    []string `yaml:"log_files"`
 		BatchFlushInterval int `yaml:"batch_flush_interval"`
+		LogFiles    []string `yaml:"log_files"`
+		InitialTailLines int `yaml:"initial_tail_lines"`
 	} `yaml:"log_monitoring"`
 
 	NodeID string `yaml:"node_id"`

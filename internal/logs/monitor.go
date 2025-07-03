@@ -17,6 +17,8 @@ import (
 	"gswarm-sidecar/internal/config"
 	"gswarm-sidecar/internal/processor"
 
+	"bufio"
+
 	"github.com/hpcloud/tail"
 )
 
@@ -130,12 +132,34 @@ func (m *Monitor) tailLogFile(ctx context.Context, path string) {
 
 // tailLogFileWithOffset tails a log file and processes new lines in real time, with offset tracking
 func (m *Monitor) tailLogFileWithOffset(ctx context.Context, path string, offsets fileOffsets) {
-	// Open file to get offset
 	absPath, _ := filepath.Abs(path)
 	var seekLine int64 = 0
 	if off, ok := offsets[absPath]; ok {
 		seekLine = off
 		log.Printf("[INFO] Seeking to line %d in %s", seekLine, absPath)
+	} else {
+		// No offset: only ingest last N lines
+		n := m.cfg.LogMonitoring.InitialTailLines
+		if n <= 0 {
+			n = 100 // fallback default
+		}
+		// Count total lines in file
+		file, err := os.Open(path)
+		if err == nil {
+			defer file.Close()
+			total := int64(0)
+			scanner := bufio.NewScanner(file)
+			for scanner.Scan() {
+				total++
+			}
+			if err := scanner.Err(); err == nil {
+				seekLine = total - int64(n)
+				if seekLine < 0 {
+					seekLine = 0
+				}
+				log.Printf("[INFO] No offset found, will start ingesting from line %d (last %d lines of %d)", seekLine, n, total)
+			}
+		}
 	}
 
 	t, err := tail.TailFile(path, tail.Config{Follow: true, ReOpen: true, Logger: tail.DiscardingLogger})

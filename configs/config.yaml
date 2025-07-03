@@ -10,6 +10,7 @@ log_monitoring:
   api_endpoint: "https://h9oy4hruxf.execute-api.us-east-1.amazonaws.com/prod/v1/ingest"
   batch_size: 10
   batch_flush_interval: 10
+  initial_tail_lines: 100
   log_files:
     - "./logs/swarm.log"
     - "./logs/yarn.log"

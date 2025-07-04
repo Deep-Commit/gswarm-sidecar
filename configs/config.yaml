@@ -1,5 +1,5 @@
 node_id: "my-node-123" # Change this to whatever you want your node name to
-jwt_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  # <-- Replace with your actual JWT
+jwt_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  # <-- Replace with your actual JWT from the gswarm.dev dashboard (https://gswarm.dev/dashboard) authenticate with ethereum wallet wallet.
 
 # logs:
 #   swarm_log_path: "./logs/swarm.log"
@@ -12,6 +12,6 @@ log_monitoring:
   batch_flush_interval: 10
   initial_tail_lines: 100
   log_files:
-    - "./logs/swarm.log"
+    - "./logs/swarm_launcher.log"  # Main RL-Swarm log file could be in a couple locations depending on if you are using docker or not.
     # - "./logs/yarn.log" # Only uncomment these if you know what you are doing
     # - "./logs/wandb/debug.log"  # Uncomment to enable

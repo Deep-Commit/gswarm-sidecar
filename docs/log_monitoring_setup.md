@@ -40,14 +40,12 @@ log_monitoring:
   batch_flush_interval: 10
   initial_tail_lines: 100
   log_files:
-    - "./logs/swarm.log"
-    - "./logs/yarn.log"
-    # - "./logs/wandb/debug.log"  # Uncomment to enable
+    - "/user/logs/swarm_launcher.log"
 node_id: "my-node-123"
 jwt_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  # <-- Replace with your actual JWT
 ```
 
-- **log_files**: List the log files you want to monitor. Uncomment or add paths as needed.
+- **log_files**: List the log files you want to monitor. For RL-Swarm, this should be `/user/logs/swarm_launcher.log` (relative to the `rl-swarm` directory).
 - **node_id**: Set a unique identifier for your node.
 - **jwt_token**: Obtain your JWT token from the dashboard settings page after authenticating with your Ethereum wallet.
 

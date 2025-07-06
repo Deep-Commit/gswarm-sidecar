@@ -119,7 +119,7 @@ telegram:
   bot_token:    "<your-telegram-bot-token>"   # Get this from @BotFather
   chat_id:      "<your-chat-or-channel-id>"   # Use your user or group/channel ID
   alert_on_down: true                         # Set to true to enable alerts
-  down_alert_delay: 300                       # Seconds to wait before alerting (e.g., 300 = 5 minutes)
+  down_alert_delay: 900                       # Seconds to wait before alerting (e.g., 300 = 5 minutes)
 ```
 
 - **bot_token**: Create a Telegram bot with [@BotFather](https://t.me/BotFather) and copy the token.

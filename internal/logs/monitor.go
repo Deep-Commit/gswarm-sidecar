@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -83,13 +84,63 @@ func (m *Monitor) Start(ctx context.Context) {
 		offsets = make(fileOffsets)
 	}
 	var wg sync.WaitGroup
-	for _, logPath := range m.cfg.LogMonitoring.LogFiles {
-		log.Printf("[INFO] Starting to tail log file: %s", logPath)
-		wg.Add(1)
-		go func(path string) {
-			defer wg.Done()
-			m.tailLogFileWithOffset(ctx, path, offsets)
-		}(logPath)
+
+	// Down detector state
+	if m.cfg.Telegram.AlertOnDown && m.cfg.Telegram.BotToken != "" && m.cfg.Telegram.ChatID != "" {
+		log.Printf("[INFO] Down detector with Telegram alerting enabled")
+		lastEventTime := time.Now()
+		alertSent := false
+		delay := time.Duration(m.cfg.Telegram.DownAlertDelay) * time.Second
+		if delay <= 0 {
+			delay = 300 * time.Second // default 5 min
+		}
+		// Channel to receive log activity pings
+		activityCh := make(chan struct{}, 1)
+		// Start down detector goroutine
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-activityCh:
+					lastEventTime = time.Now()
+					if alertSent {
+						log.Printf("[INFO] Node activity resumed, resetting down alert state")
+						alertSent = false
+					}
+				default:
+					time.Sleep(2 * time.Second)
+					if !alertSent && time.Since(lastEventTime) > delay {
+						msg := fmt.Sprintf("[gswarm-sidecar] ALERT: Node '%s' appears DOWN. No log activity for %dm.", m.cfg.NodeID, int(delay.Minutes()))
+						err := sendTelegramAlert(m.cfg.Telegram.BotToken, m.cfg.Telegram.ChatID, msg)
+						if err != nil {
+							log.Printf("[ERROR] Failed to send Telegram alert: %v", err)
+						} else {
+							log.Printf("[INFO] Sent Telegram down alert: %s", msg)
+							alertSent = true
+						}
+					}
+				}
+			}
+		}()
+		// Wrap log file tailers to notify activityCh on new events
+		for _, logPath := range m.cfg.LogMonitoring.LogFiles {
+			log.Printf("[INFO] Starting to tail log file: %s", logPath)
+			wg.Add(1)
+			go func(path string) {
+				defer wg.Done()
+				m.tailLogFileWithOffsetAndActivity(ctx, path, offsets, activityCh)
+			}(logPath)
+		}
+	} else {
+		for _, logPath := range m.cfg.LogMonitoring.LogFiles {
+			log.Printf("[INFO] Starting to tail log file: %s", logPath)
+			wg.Add(1)
+			go func(path string) {
+				defer wg.Done()
+				m.tailLogFileWithOffset(ctx, path, offsets)
+			}(logPath)
+		}
 	}
 	wg.Wait()
 }
@@ -396,5 +447,124 @@ func (m *Monitor) postBatchWithOffset(ctx context.Context, batch []MetricEvent, 
 			log.Printf("[ERROR] Failed to save offsets: %v", err)
 		}
 		return true
+	}
+}
+
+// sendTelegramAlert sends a message to the configured Telegram chat using the bot token and chat ID.
+func sendTelegramAlert(botToken, chatID, message string) error {
+	url := "https://api.telegram.org/bot" + botToken + "/sendMessage"
+	payload := map[string]string{
+		"chat_id": chatID,
+		"text":    message,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("telegram API error: %d %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
+// Add a new tailLogFileWithOffsetAndActivity method
+func (m *Monitor) tailLogFileWithOffsetAndActivity(ctx context.Context, path string, offsets fileOffsets, activityCh chan<- struct{}) {
+	absPath, _ := filepath.Abs(path)
+	var seekLine int64 = 0
+	if off, ok := offsets[absPath]; ok {
+		seekLine = off
+		log.Printf("[INFO] Seeking to line %d in %s", seekLine, absPath)
+	} else {
+		n := m.cfg.LogMonitoring.InitialTailLines
+		if n <= 0 {
+			n = 100 // fallback default
+		}
+		file, err := os.Open(path)
+		if err == nil {
+			defer file.Close()
+			total := int64(0)
+			scanner := bufio.NewScanner(file)
+			for scanner.Scan() {
+				total++
+			}
+			if err := scanner.Err(); err == nil {
+				seekLine = total - int64(n)
+				if seekLine < 0 {
+					seekLine = 0
+				}
+				log.Printf("[INFO] No offset found, will start ingesting from line %d (last %d lines of %d)", seekLine, n, total)
+			}
+		}
+	}
+	t, err := tail.TailFile(path, tail.Config{Follow: true, ReOpen: true, Logger: tail.DiscardingLogger})
+	if err != nil {
+		log.Printf("[ERROR] Failed to tail log file %s: %v\n", path, err)
+		return
+	}
+	log.Printf("[INFO] Successfully tailing log file: %s", path)
+	batch := make([]MetricEvent, 0, m.cfg.LogMonitoring.BatchSize)
+	lineNum := int64(0)
+	flushInterval := 10 * time.Second
+	if m.cfg.LogMonitoring.BatchFlushInterval > 0 {
+		flushInterval = time.Duration(m.cfg.LogMonitoring.BatchFlushInterval) * time.Second
+	}
+	flushTimer := time.NewTimer(flushInterval)
+	defer flushTimer.Stop()
+	for lineNum < seekLine {
+		line := <-t.Lines
+		if line == nil {
+			continue
+		}
+		lineNum++
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("[INFO] Context done, stopping tail for file: %s", path)
+			if len(batch) > 0 {
+				log.Printf("[INFO] Flushing remaining batch before exit for file: %s", path)
+				m.postBatchWithOffset(ctx, batch, absPath, lineNum, offsets)
+			}
+			return
+		case line := <-t.Lines:
+			if line == nil {
+				log.Printf("[WARN] Received nil line from tail for file: %s", path)
+				continue
+			}
+			// Notify activity
+			select { case activityCh <- struct{}{}: default: }
+			log.Printf("[DEBUG] Read new line from %s: %s", path, line.Text)
+			lineNum++
+			event := parseSwarmLogLine(line.Text, m.cfg)
+			if event != nil {
+				log.Printf("[DEBUG] Created MetricEvent: %+v", *event)
+				batch = append(batch, *event)
+				if len(batch) >= m.cfg.LogMonitoring.BatchSize {
+					log.Printf("[INFO] Batch size reached (%d), sending batch", m.cfg.LogMonitoring.BatchSize)
+					if m.postBatchWithOffset(ctx, batch, absPath, lineNum, offsets) {
+						batch = batch[:0]
+					}
+					flushTimer.Reset(flushInterval)
+				} else {
+					flushTimer.Reset(flushInterval)
+				}
+			} else {
+				log.Printf("[DEBUG] Skipped line (did not produce MetricEvent): %s", line.Text)
+			}
+		case <-flushTimer.C:
+			if len(batch) > 0 {
+				log.Printf("[INFO] Batch flush interval reached, sending batch of %d for file: %s", len(batch), path)
+				if m.postBatchWithOffset(ctx, batch, absPath, lineNum, offsets) {
+					batch = batch[:0]
+				}
+			}
+			flushTimer.Reset(flushInterval)
+		}
 	}
 }

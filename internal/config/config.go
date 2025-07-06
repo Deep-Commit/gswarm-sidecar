@@ -7,6 +7,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type TelegramConfig struct {
+	BotToken       string `yaml:"bot_token"`
+	ChatID         string `yaml:"chat_id"`
+	AlertOnDown    bool   `yaml:"alert_on_down"`
+	DownAlertDelay int    `yaml:"down_alert_delay"` // seconds
+}
+
 type Config struct {
 	Logs struct {
 		SwarmLogPath string `yaml:"swarm_log_path"`
@@ -54,6 +61,8 @@ type Config struct {
 
 	NodeID string `yaml:"node_id"`
 	JWTToken string `yaml:"jwt_token"`
+
+	Telegram TelegramConfig `yaml:"telegram"`
 }
 
 func Load() (*Config, error) {

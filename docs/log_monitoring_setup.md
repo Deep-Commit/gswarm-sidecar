@@ -98,3 +98,46 @@ docker run -v $(pwd)/configs/config.yaml:/app/configs/config.yaml gswarm-sidecar
 ## 8. Need Help?
 
 Open an issue or check the [README.md](../README.md) for more information.
+
+---
+
+## 9. Down Detector & Telegram Alerting
+
+The sidecar includes a built-in **Down Detector** that can alert you via Telegram if your node appears to be offline or unresponsive.
+
+### How It Works
+- The sidecar monitors your log files for new activity.
+- If no new log lines are detected for a configurable period (e.g., 5 minutes), the sidecar will send an alert to your Telegram via your configured bot.
+- Alerts are only sent if the node goes down after being up (no alert spam on startup or repeated alerts).
+- Once the node resumes activity, the alert state resets, and you will be notified again only if it goes down in the future.
+
+### Configuration
+Add a `telegram` section to your `configs/config.yaml`:
+
+```yaml
+telegram:
+  bot_token:    "<your-telegram-bot-token>"   # Get this from @BotFather
+  chat_id:      "<your-chat-or-channel-id>"   # Use your user or group/channel ID
+  alert_on_down: true                         # Set to true to enable alerts
+  down_alert_delay: 300                       # Seconds to wait before alerting (e.g., 300 = 5 minutes)
+```
+
+- **bot_token**: Create a Telegram bot with [@BotFather](https://t.me/BotFather) and copy the token.
+- **chat_id**: Use your user, group, or channel ID. You can get your user ID from [@userinfobot](https://t.me/userinfobot) or add the bot to a group/channel and use its ID.
+- **alert_on_down**: Set to `true` to enable down alerts.
+- **down_alert_delay**: How long (in seconds) the node must be inactive before an alert is sent.
+
+### Best Practices
+- Set a reasonable `down_alert_delay` to avoid false positives (e.g., 300 seconds).
+- Make sure your bot has permission to message you or your group/channel.
+- Only one alert is sent per downtime event; you will not be spammed with repeated messages.
+- Alerts will not be sent immediately on startup if the node is already down.
+
+### Example Alert
+```
+[gswarm-sidecar] ALERT: Node 'my-node-123' appears DOWN. No log activity for 5m.
+```
+
+---
+
+For more help, open an issue or check the main README.

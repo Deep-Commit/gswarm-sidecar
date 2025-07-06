@@ -15,3 +15,9 @@ log_monitoring:
     - "./logs/swarm_launcher.log"  # Main RL-Swarm log file could be in a couple locations depending on if you are using docker or not.
     # - "./logs/yarn.log" # Only uncomment these if you know what you are doing
     # - "./logs/wandb/debug.log"  # Uncomment to enable
+
+telegram:
+  bot_token:    "6139877560:AAE..."      # <-- your token
+  chat_id:      "-1001876543210"         # <-- DM or channel id
+  alert_on_down: true                    # <-- turn pings on
+  down_alert_delay: 300                  # <-- seconds to wait before alerting (example: 5 minutes)

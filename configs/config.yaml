@@ -20,4 +20,4 @@ telegram:
   bot_token:    "6139877560:AAE..."      # <-- your token
   chat_id:      "-1001876543210"         # <-- DM or channel id
   alert_on_down: true                    # <-- turn pings on
-  down_alert_delay: 300                  # <-- seconds to wait before alerting (example: 5 minutes)
+  down_alert_delay: 900                  # <-- seconds to wait before alerting (15 minutes)

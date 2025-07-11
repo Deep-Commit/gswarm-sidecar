@@ -42,7 +42,7 @@ func New(cfg *config.Config) *Transmitter {
 	}
 }
 
-func (t *Transmitter) sendJSON(ctx context.Context, endpoint string, payload interface{}) error {
+func (t *Transmitter) SendJSON(ctx context.Context, endpoint string, payload interface{}, authToken ...string) error {
 	url := fmt.Sprintf("%s%s", t.cfg.API.BaseURL, endpoint)
 
 	jsonData, err := json.Marshal(payload)
@@ -56,7 +56,9 @@ func (t *Transmitter) sendJSON(ctx context.Context, endpoint string, payload int
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	if t.cfg.API.AuthToken != "" {
+	if len(authToken) > 0 && authToken[0] != "" {
+		req.Header.Set("Authorization", "Bearer "+authToken[0])
+	} else if t.cfg.API.AuthToken != "" {
 		req.Header.Set("Authorization", "Bearer "+t.cfg.API.AuthToken)
 	}
 
@@ -64,11 +66,11 @@ func (t *Transmitter) sendJSON(ctx context.Context, endpoint string, payload int
 }
 
 func (t *Transmitter) SendMetrics(ctx context.Context, data *MetricsData) error {
-	return t.sendJSON(ctx, t.cfg.API.MetricsEndpoint, data)
+	return t.SendJSON(ctx, t.cfg.API.MetricsEndpoint, data)
 }
 
 func (t *Transmitter) SendHealth(ctx context.Context, data *HealthData) error {
-	return t.sendJSON(ctx, t.cfg.API.HealthEndpoint, data)
+	return t.SendJSON(ctx, t.cfg.API.HealthEndpoint, data)
 }
 
 func (t *Transmitter) sendWithRetry(req *http.Request) error {

@@ -30,26 +30,32 @@ func New(cfg *config.Config, processor *processor.Processor) *Monitor {
 }
 
 func (m *Monitor) Start(ctx context.Context) {
+	log.Printf("[blockchain] Monitor Start: initializing connection to RPC %s", m.cfg.Blockchain.RPCURL)
 	client, err := ethclient.Dial(m.cfg.Blockchain.RPCURL)
 	if err != nil {
-		log.Fatalf("Failed to connect to Ethereum RPC: %v", err)
+		log.Fatalf("[blockchain] Failed to connect to Ethereum RPC: %v", err)
 	}
 
+	log.Printf("[blockchain] Connected to Ethereum RPC at %s", m.cfg.Blockchain.RPCURL)
 	contractAddress := common.HexToAddress(m.cfg.Blockchain.ContractAddress)
+	log.Printf("[blockchain] Parsing contract ABI from config")
 	contractABI, err := abi.JSON(strings.NewReader(m.cfg.Blockchain.ContractABI))
 	if err != nil {
-		log.Fatalf("Failed to parse contract ABI: %v", err)
+		log.Fatalf("[blockchain] Failed to parse contract ABI: %v", err)
 	}
 	defer client.Close()
 
-	const defaultPollIntervalSeconds = 30
+	const defaultPollIntervalSeconds = 60
 	pollInterval := time.Duration(m.cfg.Blockchain.PollInterval) * time.Second
 	if pollInterval == 0 {
 		pollInterval = time.Duration(defaultPollIntervalSeconds) * time.Second
 	}
 
+	log.Printf("[blockchain] Poll interval set to %v", pollInterval)
 	var lastBlock uint64
+	log.Printf("[blockchain] Entering pollBlockchain loop")
 	m.pollBlockchain(ctx, client, contractAddress, &contractABI, pollInterval, lastBlock)
+	log.Printf("[blockchain] Exiting pollBlockchain loop")
 }
 
 func (m *Monitor) pollBlockchain(
@@ -63,57 +69,125 @@ func (m *Monitor) pollBlockchain(
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
+	// Query immediately on startup
+	m.pollOnce(ctx, client, contractAddress, contractABI, &lastBlock)
+
 	for {
 		select {
 		case <-ctx.Done():
+			log.Printf("[blockchain] Context done, stopping pollBlockchain")
 			return
 		case <-ticker.C:
-			currentBlock, err := client.BlockNumber(ctx)
-			if err != nil {
-				log.Printf("Failed to get current block: %v", err)
-				continue
-			}
-
-			if currentBlock <= lastBlock {
-				continue
-			}
-
-			query := ethereum.FilterQuery{
-				Addresses: []common.Address{contractAddress},
-				FromBlock: new(big.Int).SetUint64(lastBlock + 1),
-				ToBlock:   new(big.Int).SetUint64(currentBlock),
-			}
-
-			var logs []types.Log
-			logs, err = client.FilterLogs(ctx, query)
-			if err != nil {
-				log.Printf("Failed to filter logs: %v", err)
-				continue
-			}
-
-			var events []processor.ContractEvent
-			for i := range logs {
-				event, ok := parseEvent(&logs[i], contractABI)
-				if ok && (event.Data["account"] == m.cfg.Blockchain.NodeEOA || event.Data["peerId"] == m.cfg.Blockchain.NodePeerID) {
-					events = append(events, event)
-				}
-			}
-
-			if len(events) > 0 {
-				metrics := &processor.BlockchainMetrics{
-					ContractEvents: events,
-					BlockNumber:    currentBlock,
-					GasUsed:        0, // TODO: Calculate if needed
-				}
-
-				if err := m.processor.ProcessBlockchain(ctx, metrics); err != nil {
-					log.Printf("Failed to process blockchain metrics: %v", err)
-				}
-			}
-
-			lastBlock = currentBlock
+			m.pollOnce(ctx, client, contractAddress, contractABI, &lastBlock)
 		}
 	}
+}
+
+func (m *Monitor) pollOnce(
+	ctx context.Context,
+	client *ethclient.Client,
+	contractAddress common.Address,
+	contractABI *abi.ABI,
+	lastBlock *uint64,
+) {
+	log.Printf("[blockchain] Poll tick: getting current block number")
+	currentBlock, err := client.BlockNumber(ctx)
+	if err != nil {
+		log.Printf("[blockchain] Failed to get current block: %v", err)
+		return
+	}
+
+	peerId := m.cfg.Blockchain.NodePeerID
+	if peerId == "" {
+		log.Printf("[blockchain] No peerId configured, skipping blockchain stats poll")
+		return
+	}
+
+	// getVoterVoteCount(peerId)
+	var participation uint64
+	voteCountOut, err := contractABI.Pack("getVoterVoteCount", peerId)
+	if err != nil {
+		log.Printf("[blockchain] Failed to pack getVoterVoteCount: %v", err)
+	} else {
+		res, callErr := client.CallContract(ctx, ethereum.CallMsg{
+			To:   &contractAddress,
+			Data: voteCountOut,
+		}, nil)
+		if callErr != nil {
+			log.Printf("[blockchain] Call to getVoterVoteCount failed: %v", callErr)
+		} else {
+			out, unpackErr := contractABI.Unpack("getVoterVoteCount", res)
+			if unpackErr != nil {
+				log.Printf("[blockchain] Failed to unpack getVoterVoteCount: %v", unpackErr)
+			} else if len(out) > 0 {
+				if v, ok := out[0].(*big.Int); ok {
+					participation = v.Uint64()
+				}
+			}
+		}
+	}
+
+	// getTotalRewards([peerId])
+	var totalRewards int64
+	rewardsOut, err := contractABI.Pack("getTotalRewards", []string{peerId})
+	if err != nil {
+		log.Printf("[blockchain] Failed to pack getTotalRewards: %v", err)
+	} else {
+		res, callErr := client.CallContract(ctx, ethereum.CallMsg{
+			To:   &contractAddress,
+			Data: rewardsOut,
+		}, nil)
+		if callErr != nil {
+			log.Printf("[blockchain] Call to getTotalRewards failed: %v", callErr)
+		} else {
+			out, unpackErr := contractABI.Unpack("getTotalRewards", res)
+			if unpackErr != nil {
+				log.Printf("[blockchain] Failed to unpack getTotalRewards: %v", unpackErr)
+			} else if len(out) > 0 {
+				if arr, ok := out[0].([]*big.Int); ok && len(arr) > 0 {
+					totalRewards = arr[0].Int64()
+				}
+			}
+		}
+	}
+
+	// getTotalWins(peerId)
+	var totalWins uint64
+	winsOut, err := contractABI.Pack("getTotalWins", peerId)
+	if err != nil {
+		log.Printf("[blockchain] Failed to pack getTotalWins: %v", err)
+	} else {
+		res, callErr := client.CallContract(ctx, ethereum.CallMsg{
+			To:   &contractAddress,
+			Data: winsOut,
+		}, nil)
+		if callErr != nil {
+			log.Printf("[blockchain] Call to getTotalWins failed: %v", callErr)
+		} else {
+			out, unpackErr := contractABI.Unpack("getTotalWins", res)
+			if unpackErr != nil {
+				log.Printf("[blockchain] Failed to unpack getTotalWins: %v", unpackErr)
+			} else if len(out) > 0 {
+				if v, ok := out[0].(*big.Int); ok {
+					totalWins = v.Uint64()
+				}
+			}
+		}
+	}
+
+	metrics := &processor.BlockchainMetrics{
+		Participation: participation,
+		TotalRewards:  totalRewards,
+		TotalWins:     totalWins,
+		BlockNumber:   currentBlock,
+	}
+
+	log.Printf("[blockchain] Blockchain stats: participation=%d, total_rewards=%d, total_wins=%d, block=%d", participation, totalRewards, totalWins, currentBlock)
+	if err := m.processor.ProcessBlockchain(ctx, metrics); err != nil {
+		log.Printf("[blockchain] Failed to process blockchain metrics: %v", err)
+	}
+
+	*lastBlock = currentBlock
 }
 
 func parseEvent(vLog *types.Log, contractABI *abi.ABI) (processor.ContractEvent, bool) {

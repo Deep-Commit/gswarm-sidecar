@@ -42,7 +42,7 @@ func New(cfg *config.Config) *Monitor {
 func (m *Monitor) Start() error {
 	// Initialize transmitter and processor
 	m.transmitter = transmitter.New(m.cfg)
-	m.processor = processor.New(m.transmitter, "gensyn-node-001") // TODO: Get actual node ID
+	m.processor = processor.New(m.transmitter, m.cfg.NodeID, m.cfg)
 
 	// Initialize monitoring components
 	m.logs = logs.New(m.cfg, m.processor)

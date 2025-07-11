@@ -43,6 +43,7 @@ const (
 	batchPostTimeout = 5 * time.Second
 	statusCodeError  = 300
 	offsetsFile      = "sidecar_offsets.json"
+	maxNilLines      = 10 // Stop tailing after this many consecutive nil lines
 )
 
 type fileOffsets map[string]int64
@@ -147,6 +148,17 @@ func (m *Monitor) Start(ctx context.Context) {
 
 // tailLogFile tails a log file and processes new lines in real time
 func (m *Monitor) tailLogFile(ctx context.Context, path string) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		log.Printf("[WARN] Log file does not exist: %s. Skipping tail for this file.", path)
+		return
+	}
+	// Check if file is empty
+	fi, err := os.Stat(path)
+	if err == nil && fi.Size() == 0 {
+		log.Printf("[WARN] Log file is empty: %s. Skipping tail for this file.", path)
+		return
+	}
+
 	t, err := tail.TailFile(path, tail.Config{Follow: true, ReOpen: true, Logger: tail.DiscardingLogger})
 	if err != nil {
 		log.Printf("[ERROR] Failed to tail log file %s: %v\n", path, err)
@@ -154,6 +166,8 @@ func (m *Monitor) tailLogFile(ctx context.Context, path string) {
 	}
 	log.Printf("[INFO] Successfully tailing log file: %s", path)
 	batch := make([]MetricEvent, 0, m.cfg.LogMonitoring.BatchSize)
+	var nilLineWarned bool
+	nilLineCount := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -161,9 +175,19 @@ func (m *Monitor) tailLogFile(ctx context.Context, path string) {
 			return
 		case line := <-t.Lines:
 			if line == nil {
-				log.Printf("[WARN] Received nil line from tail for file: %s", path)
+				nilLineCount++
+				if !nilLineWarned {
+					log.Printf("[WARN] Received nil line from tail for file: %s (will suppress further warnings)", path)
+					nilLineWarned = true
+				}
+				if nilLineCount >= maxNilLines {
+					log.Printf("[WARN] Too many nil lines from tail for file: %s. Stopping tail for this file.", path)
+					return
+				}
 				continue
 			}
+			nilLineWarned = false // reset if we get a real line
+			nilLineCount = 0
 			log.Printf("[DEBUG] Read new line from %s: %s", path, line.Text)
 			event := parseSwarmLogLine(line.Text, m.cfg)
 			if event != nil {
@@ -475,6 +499,18 @@ func sendTelegramAlert(botToken, chatID, message string) error {
 
 // Add a new tailLogFileWithOffsetAndActivity method
 func (m *Monitor) tailLogFileWithOffsetAndActivity(ctx context.Context, path string, offsets fileOffsets, activityCh chan<- struct{}) {
+	// Check if file exists
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		log.Printf("[WARN] Log file does not exist: %s. Skipping tail for this file.", path)
+		return
+	}
+	// Check if file is empty
+	fi, err := os.Stat(path)
+	if err == nil && fi.Size() == 0 {
+		log.Printf("[WARN] Log file is empty: %s. Skipping tail for this file.", path)
+		return
+	}
+
 	absPath, _ := filepath.Abs(path)
 	var seekLine int64 = 0
 	if off, ok := offsets[absPath]; ok {
@@ -516,6 +552,7 @@ func (m *Monitor) tailLogFileWithOffsetAndActivity(ctx context.Context, path str
 	}
 	flushTimer := time.NewTimer(flushInterval)
 	defer flushTimer.Stop()
+	// Skip lines up to seekLine
 	for lineNum < seekLine {
 		line := <-t.Lines
 		if line == nil {
@@ -523,6 +560,8 @@ func (m *Monitor) tailLogFileWithOffsetAndActivity(ctx context.Context, path str
 		}
 		lineNum++
 	}
+	var nilLineWarned bool
+	nilLineCount := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -534,9 +573,19 @@ func (m *Monitor) tailLogFileWithOffsetAndActivity(ctx context.Context, path str
 			return
 		case line := <-t.Lines:
 			if line == nil {
-				log.Printf("[WARN] Received nil line from tail for file: %s", path)
+				nilLineCount++
+				if !nilLineWarned {
+					log.Printf("[WARN] Received nil line from tail for file: %s (will suppress further warnings)", path)
+					nilLineWarned = true
+				}
+				if nilLineCount >= maxNilLines {
+					log.Printf("[WARN] Too many nil lines from tail for file: %s. Stopping tail for this file.", path)
+					return
+				}
 				continue
 			}
+			nilLineWarned = false // reset if we get a real line
+			nilLineCount = 0
 			// Notify activity
 			select { case activityCh <- struct{}{}: default: }
 			log.Printf("[DEBUG] Read new line from %s: %s", path, line.Text)

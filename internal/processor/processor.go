@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"time"
 
+	"gswarm-sidecar/internal/config"
 	"gswarm-sidecar/internal/transmitter"
 )
 
 type Processor struct {
 	transmitter *transmitter.Transmitter
 	nodeID      string
+	cfg         *config.Config
 }
 
 type LogMetrics struct {
@@ -36,6 +38,10 @@ type BlockchainMetrics struct {
 	ContractEvents []ContractEvent `json:"contract_events"`
 	GasUsed        uint64          `json:"gas_used"`
 	BlockNumber    uint64          `json:"block_number"`
+
+	Participation  uint64          `json:"participation"`
+	TotalRewards   int64           `json:"total_rewards"`
+	TotalWins      uint64          `json:"total_wins"`
 }
 
 type ContractEvent struct {
@@ -80,10 +86,11 @@ type NetworkMetrics struct {
 	PacketsReceived uint64 `json:"packets_received"`
 }
 
-func New(transmitter *transmitter.Transmitter, nodeID string) *Processor {
+func New(transmitter *transmitter.Transmitter, nodeID string, cfg *config.Config) *Processor {
 	return &Processor{
 		transmitter: transmitter,
 		nodeID:      nodeID,
+		cfg:         cfg,
 	}
 }
 
@@ -134,10 +141,13 @@ func (p *Processor) ProcessBlockchain(ctx context.Context, metrics *BlockchainMe
 			"contract_events": metrics.ContractEvents,
 			"gas_used":        metrics.GasUsed,
 			"block_number":    metrics.BlockNumber,
+			"participation":   metrics.Participation,
+			"total_rewards":   metrics.TotalRewards,
+			"total_wins":      metrics.TotalWins,
 		},
 	}
 
-	err := p.transmitter.SendMetrics(ctx, data)
+	err := p.transmitter.SendJSON(ctx, p.cfg.API.BlockchainLatestEndpoint, data, p.cfg.JWTToken)
 	if err != nil {
 		return fmt.Errorf("failed to send blockchain metrics: %w", err)
 	}

@@ -80,6 +80,48 @@ gswarm-sidecar/
    curl http://localhost:8080/health
    ```
 
+## Running Without Docker (Command Line Go)
+
+You can run the GSwarm Sidecar directly from the command line using Go, without Docker. This is useful for development, debugging, or running on bare metal.
+
+### Prerequisites
+- Go 1.24 or later (https://golang.org/dl/)
+- (Optional) [pre-commit](https://pre-commit.com/) for code quality hooks
+
+### Setup
+1. **Clone the repository and install dependencies:**
+   ```bash
+   git clone <repository-url>
+   cd gswarm-sidecar
+   go mod download
+   ```
+2. **Edit your configuration:**
+   - Copy and edit `configs/config.yaml` to match your environment (log file paths, blockchain settings, API tokens, etc).
+
+### Running the Sidecar
+
+You can run the monitor directly with Go:
+```bash
+go run cmd/monitor/main.go
+```
+
+Or build a binary and run it:
+```bash
+go build -o gswarm-sidecar cmd/monitor/main.go
+./gswarm-sidecar
+```
+
+### Stopping
+- Press `Ctrl+C` to gracefully stop the sidecar.
+
+### Notes
+- The sidecar will read `configs/config.yaml` by default. To use a different config, set the `CONFIG_PATH` environment variable:
+  ```bash
+  CONFIG_PATH=/path/to/your_config.yaml go run cmd/monitor/main.go
+  ```
+- All logs will be printed to stdout by default.
+- Make sure your Go version matches the required version in `go.mod` for best compatibility.
+
 ## Development Tools
 
 This project uses several development tools to maintain code quality and consistency:

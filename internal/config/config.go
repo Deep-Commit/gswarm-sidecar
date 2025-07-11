@@ -27,9 +27,15 @@ type Config struct {
 	} `yaml:"dht"`
 
 	Blockchain struct {
-		ContractAddress string `yaml:"contract_address"`
-		RPCURL          string `yaml:"rpc_url"`
-		ChainID         int64  `yaml:"chain_id"`
+		ContractAddress   string `yaml:"contract_address"`
+		RPCURL            string `yaml:"rpc_url"`
+		ChainID           int64  `yaml:"chain_id"`
+		ContractABIPath   string `yaml:"contract_abi_path"`
+		PollInterval      int    `yaml:"poll_interval"` // in seconds
+		SendInterval      int    `yaml:"send_interval"` // in seconds, for latest blockchain metrics
+		NodeEOA           string `yaml:"node_eoa"`
+		NodePeerID        string `yaml:"node_peer_id"`
+		ContractABI       string // not mapped to yaml, loaded from file
 	} `yaml:"blockchain"`
 
 	System struct {
@@ -42,24 +48,25 @@ type Config struct {
 	} `yaml:"storage"`
 
 	API struct {
-		BaseURL         string `yaml:"base_url"`
-		MetricsEndpoint string `yaml:"metrics_endpoint"`
-		HealthEndpoint  string `yaml:"health_endpoint"`
-		AuthToken       string `yaml:"auth_token"`
-		Timeout         int    `yaml:"timeout"`
-		RetryCount      int    `yaml:"retry_count"`
+		BaseURL                  string `yaml:"base_url"`
+		MetricsEndpoint          string `yaml:"metrics_endpoint"`
+		HealthEndpoint           string `yaml:"health_endpoint"`
+		AuthToken                string `yaml:"auth_token"`
+		Timeout                  int    `yaml:"timeout"`
+		RetryCount               int    `yaml:"retry_count"`
+		BlockchainLatestEndpoint string `yaml:"blockchain_latest_endpoint"`
 	} `yaml:"api"`
 
 	LogMonitoring struct {
-		APIEndpoint string   `yaml:"api_endpoint"`
-		AuthToken   string   `yaml:"auth_token"`
-		BatchSize   int      `yaml:"batch_size"`
-		BatchFlushInterval int `yaml:"batch_flush_interval"`
-		LogFiles    []string `yaml:"log_files"`
-		InitialTailLines int `yaml:"initial_tail_lines"`
+		APIEndpoint        string   `yaml:"api_endpoint"`
+		AuthToken          string   `yaml:"auth_token"`
+		BatchSize          int      `yaml:"batch_size"`
+		BatchFlushInterval int      `yaml:"batch_flush_interval"`
+		LogFiles           []string `yaml:"log_files"`
+		InitialTailLines   int      `yaml:"initial_tail_lines"`
 	} `yaml:"log_monitoring"`
 
-	NodeID string `yaml:"node_id"`
+	NodeID   string `yaml:"node_id"`
 	JWTToken string `yaml:"jwt_token"`
 
 	Telegram TelegramConfig `yaml:"telegram"`
@@ -79,6 +86,14 @@ func Load() (*Config, error) {
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	if cfg.Blockchain.ContractABIPath != "" {
+		abiBytes, err := os.ReadFile(cfg.Blockchain.ContractABIPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read contract ABI file: %w", err)
+		}
+		cfg.Blockchain.ContractABI = string(abiBytes)
 	}
 
 	return &cfg, nil

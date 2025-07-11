@@ -16,6 +16,25 @@ log_monitoring:
     # - "./logs/yarn.log" # Only uncomment these if you know what you are doing
     # - "./logs/wandb/debug.log"  # Uncomment to enable
 
+api:
+  base_url: "https://gswarm.dev"
+  metrics_endpoint: "/api/v1/metrics"
+  health_endpoint: "/api/v1/health"
+  auth_token: "YOUR_JWT_TOKEN_HERE"
+  timeout: 10
+  retry_count: 3
+  blockchain_latest_endpoint: "/api/v1/latest-blockchain"
+
+blockchain:
+  contract_address: "0xFaD7C5e93f28257429569B854151A1B8DCD404c2"
+  rpc_url: "https://gensyn-testnet.g.alchemy.com/public"
+  chain_id: 1234
+  contract_abi_path: "./configs/contract.abi.json"
+  poll_interval: 300
+  send_interval: 300
+  node_eoa: "0xYourNodeEOA" # <---Change this to your node EOA address
+  node_peer_id: "your-unique-peer-id"
+
 telegram:
   bot_token:    "6139877560:AAE..."      # <-- your token
   chat_id:      "-1001876543210"         # <-- DM or channel id

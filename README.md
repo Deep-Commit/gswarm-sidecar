@@ -1,15 +1,84 @@
 # GSwarm Side Car Monitoring System
 
-A Go-based side car monitoring system for monitoring **Gensyn AI nodes** in the Gensyn distributed training network. This system collects metrics from running Gensyn AI swarm nodes without modifying the existing codebase, providing real-time data to feed into the gswarm UI.
+**Easily monitor your Gensyn AI nodes—no coding required!**
 
-## Overview
+This tool helps you track the health and performance of your Gensyn AI nodes. Just update a simple config file, then launch the monitor with a single command. No need to change your existing node setup or write any code.
 
-The GSwarm Side Car Monitoring System is designed to monitor Gensyn AI nodes that participate in distributed training tasks. It provides comprehensive monitoring capabilities for:
+---
 
-- **Gensyn AI Node Performance**: Track training progress, model updates, and node health
-- **Distributed Training Metrics**: Monitor peer-to-peer communication and model synchronization
-- **Blockchain Integration**: Track training submissions and rewards on the Gensyn testnet
-- **System Resources**: Monitor hardware utilization and container performance
+## Quick Start for Beginners
+
+**1. Get Your JWT Token**
+
+To use the monitor, you need a JWT token from the GSwarm dashboard:
+
+- Go to [https://gswarm.dev](https://gswarm.dev)
+- Connect your Metamask wallet (you'll see a prompt on the site)
+- After logging in, go to your dashboard/settings and copy your JWT token
+
+**2. Edit the Configuration File**
+
+Before running the monitor, tell it where to find your log files and where to send the data.
+
+- Open the file: `configs/config.yaml`
+- Paste your JWT token into the `jwt_token` field:
+
+```yaml
+jwt_token: "YOUR_JWT_TOKEN_HERE"
+```
+- Update these lines to match your setup:
+
+```yaml
+log_monitoring:
+  api_endpoint: "https://central-api.example.com/gswarm/metrics"  # Where to send metrics
+  log_files:
+    - "/path/to/rl-swarm/logs/swarm.log"   # Main log file
+    - "/path/to/rl-swarm/logs/yarn.log"    # Login server log
+#   - "/path/to/rl-swarm/logs/wandb/debug.log"  # (Optional) Advanced metrics
+```
+
+**3. Start the Monitor**
+
+If you have Docker installed (recommended for easiest setup):
+
+```bash
+docker compose up
+```
+
+Or, if you prefer to run it directly (requires Go):
+
+```bash
+make run
+```
+
+**4. How to Know It's Working**
+
+- The monitor will print logs to your terminal window.
+- If you see messages about reading your log files and sending data, it's working!
+- You can also check your dashboard at [https://gswarm.dev](https://gswarm.dev) to see if your node is reporting.
+
+---
+
+## What Does This Do?
+
+- Watches your Gensyn AI node log files in real time
+- Sends important events and metrics to a central dashboard (API)
+- Helps you keep track of node health, training progress, and more
+- No changes needed to your Gensyn AI node code
+
+---
+
+## Need Help?
+
+- Double-check your log file paths in `configs/config.yaml`
+- Make sure Docker is installed (for easiest setup)
+- For advanced help, see the [DEVELOPMENT.md](DEVELOPMENT.md) or ask your Gensyn support contact
+
+---
+
+## Advanced: Development & Customization
+
+If you want to build, test, or develop the monitor yourself, see below for more details.
 
 ## Project Structure
 
@@ -56,29 +125,6 @@ gswarm-sidecar/
 - **Health Check Endpoints**: REST API for Gensyn node health and metrics
 - **Data Processing**: Aggregates and normalizes metrics data from distributed training
 - **Alerting**: Generates alerts for critical events in the Gensyn AI network
-
-## Quick Start
-
-1. **Setup development environment:**
-   ```bash
-   make setup
-   pre-commit install
-   ```
-
-2. **Build and run with Docker Compose:**
-   ```bash
-   make docker-run
-   ```
-
-3. **Run locally:**
-   ```bash
-   make run
-   ```
-
-4. **Access health endpoint:**
-   ```bash
-   curl http://localhost:8080/health
-   ```
 
 ## Running Without Docker (Command Line Go)
 

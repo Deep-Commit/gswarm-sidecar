@@ -1,6 +1,6 @@
 # GSwarm Side Car Monitoring System
 
-A Go-based side car monitoring system for monitoring **Gensyn AI nodes** in the GSwarm distributed training network. This system collects metrics from running Gensyn AI swarm nodes without modifying the existing codebase, providing real-time data to feed into the gswarm UI.
+A Go-based side car monitoring system for monitoring **Gensyn AI nodes** in the Gensyn distributed training network. This system collects metrics from running Gensyn AI swarm nodes without modifying the existing codebase, providing real-time data to feed into the gswarm UI.
 
 ## Overview
 

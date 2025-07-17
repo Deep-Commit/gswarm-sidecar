@@ -121,7 +121,7 @@ gswarm-sidecar/
 - **Log File Monitoring**: Tracks swarm.log, yarn.log, and wandb logs from Gensyn nodes
 - **DHT Network Monitoring**: Monitors Hivemind DHT peer connections and model synchronization
 - **Blockchain Monitoring**: Tracks smart contract events on Gensyn testnet (training submissions, rewards)
-- **System Resource Monitoring**: Hardware metrics and Docker container monitoring for AI nodes
+- **System Resource Monitoring**: Hardware metrics (CPU, RAM, GPU) and Docker container monitoring for AI nodes
 - **Health Check Endpoints**: REST API for Gensyn node health and metrics
 - **Data Processing**: Aggregates and normalizes metrics data from distributed training
 - **Alerting**: Generates alerts for critical events in the Gensyn AI network
@@ -229,6 +229,33 @@ This is a bare bones structure. Each component (logs, dht, blockchain, system) c
 ## License
 
 See LICENSE file for details.
+
+## Hardware Monitoring
+
+The system includes comprehensive hardware monitoring that collects CPU, RAM, and GPU metrics from your nodes. This enables:
+
+- **Performance Optimization**: Monitor resource utilization to optimize workload distribution
+- **Health Monitoring**: Detect hardware issues early and prevent thermal throttling
+- **Resource Management**: Identify underutilized resources and plan capacity
+
+### Supported Metrics
+- **CPU**: Usage percentage, core count, load averages
+- **RAM**: Total/used/available memory, swap usage
+- **GPU**: Utilization, temperature, VRAM usage (NVIDIA GPUs)
+
+### Configuration
+Add hardware monitoring settings to your `configs/config.yaml`:
+
+```yaml
+system:
+  poll_interval: 10      # Polling interval in seconds
+  enable_gpu: true       # Enable GPU monitoring
+  enable_cpu: true       # Enable CPU monitoring
+  enable_ram: true       # Enable RAM monitoring
+  batch_size: 10         # Metrics batch size
+```
+
+For detailed hardware monitoring documentation, see [docs/hardware_monitoring.md](docs/hardware_monitoring.md).
 
 ## Log File Monitoring and Central API Posting
 

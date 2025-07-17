@@ -39,8 +39,13 @@ type Config struct {
 	} `yaml:"blockchain"`
 
 	System struct {
-		MetricsInterval int `yaml:"metrics_interval"`
-		HealthPort      int `yaml:"health_port"`
+		MetricsInterval int  `yaml:"metrics_interval"`
+		HealthPort      int  `yaml:"health_port"`
+		PollInterval    int  `yaml:"poll_interval"` // Seconds, default 10
+		EnableGPU       bool `yaml:"enable_gpu"`    // True if NVIDIA GPU present
+		EnableCPU       bool `yaml:"enable_cpu"`    // Default true
+		EnableRAM       bool `yaml:"enable_ram"`    // Default true
+		BatchSize       int  `yaml:"batch_size"`    // Default 10
 	} `yaml:"system"`
 
 	Storage struct {
@@ -94,6 +99,20 @@ func Load() (*Config, error) {
 			return nil, fmt.Errorf("failed to read contract ABI file: %w", err)
 		}
 		cfg.Blockchain.ContractABI = string(abiBytes)
+	}
+
+	// Set defaults for system monitoring if not specified
+	if cfg.System.PollInterval == 0 {
+		cfg.System.PollInterval = 10 // Default 10s
+	}
+	if cfg.System.BatchSize == 0 {
+		cfg.System.BatchSize = 10 // Default batch size
+	}
+	if !cfg.System.EnableCPU {
+		cfg.System.EnableCPU = true // Default true
+	}
+	if !cfg.System.EnableRAM {
+		cfg.System.EnableRAM = true // Default true
 	}
 
 	return &cfg, nil

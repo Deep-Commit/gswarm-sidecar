@@ -59,6 +59,20 @@ type SystemMetrics struct {
 	Network NetworkMetrics `json:"network"`
 }
 
+type HardwareMetrics struct {
+	CPU CPUMetrics     `json:"cpu"`
+	RAM MemoryMetrics  `json:"ram"`
+	GPU []GPUMetrics   `json:"gpu,omitempty"`
+}
+
+type GPUMetrics struct {
+	Index        int     `json:"index"`
+	UtilPercent  float64 `json:"util_percent"`
+	TempC        float64 `json:"temp_c"`
+	VRAMUsedMB   float64 `json:"vram_used_mb"`
+	VRAMTotalMB  float64 `json:"vram_total_mb"`
+}
+
 type CPUMetrics struct {
 	UsagePercent float64 `json:"usage_percent"`
 	CoreCount    int     `json:"core_count"`
@@ -70,6 +84,9 @@ type MemoryMetrics struct {
 	Used         uint64  `json:"used"`
 	Available    uint64  `json:"available"`
 	UsagePercent float64 `json:"usage_percent"`
+	SwapTotal    uint64  `json:"swap_total,omitempty"`
+	SwapUsed     uint64  `json:"swap_used,omitempty"`
+	SwapPercent  float64 `json:"swap_percent,omitempty"`
 }
 
 type DiskMetrics struct {
@@ -170,6 +187,25 @@ func (p *Processor) ProcessSystem(ctx context.Context, metrics *SystemMetrics) e
 	err := p.transmitter.SendMetrics(ctx, data)
 	if err != nil {
 		return fmt.Errorf("failed to send system metrics: %w", err)
+	}
+	return nil
+}
+
+func (p *Processor) ProcessHardware(ctx context.Context, metrics *HardwareMetrics) error {
+	data := &transmitter.MetricsData{
+		NodeID:      p.nodeID,
+		Timestamp:   time.Now(),
+		MetricsType: "hardware",
+		Data: map[string]interface{}{
+			"cpu": metrics.CPU,
+			"ram": metrics.RAM,
+			"gpu": metrics.GPU,
+		},
+	}
+
+	err := p.transmitter.SendMetrics(ctx, data)
+	if err != nil {
+		return fmt.Errorf("failed to send hardware metrics: %w", err)
 	}
 	return nil
 }

@@ -6,6 +6,13 @@ jwt_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  # <-- Replace with your ac
 #   yarn_log_path: "./logs/yarn.log"
 #   wandb_log_path: "./logs/wandb/"
 
+system:
+  poll_interval: 10
+  enable_gpu: true
+  enable_cpu: true
+  enable_ram: true
+  batch_size: 10
+
 log_monitoring:
   api_endpoint: "https://h9oy4hruxf.execute-api.us-east-1.amazonaws.com/prod/v1/ingest" # Leave this unless you have your own custom backend.
   batch_size: 10

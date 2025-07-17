@@ -20,6 +20,8 @@ import (
 
 	"bufio"
 
+	"regexp"
+
 	"github.com/hpcloud/tail"
 )
 
@@ -389,6 +391,10 @@ func extractPeersFromLine(line string) []string {
 
 // postBatch posts a batch of MetricEvents to the API
 func (m *Monitor) postBatch(ctx context.Context, batch []MetricEvent) {
+	// Scrub PII from all events before sending
+	for i := range batch {
+		scrubPII(&batch[i])
+	}
 	data, err := json.MarshalIndent(batch, "", "  ")
 	if err != nil {
 		log.Printf("[ERROR] Failed to marshal batch: %v\n", err)
@@ -430,6 +436,10 @@ func (m *Monitor) postBatch(ctx context.Context, batch []MetricEvent) {
 
 // postBatchWithOffset posts a batch of MetricEvents to the API, with offset tracking
 func (m *Monitor) postBatchWithOffset(ctx context.Context, batch []MetricEvent, absPath string, lineNum int64, offsets fileOffsets) bool {
+	// Scrub PII from all events before sending
+	for i := range batch {
+		scrubPII(&batch[i])
+	}
 	data, err := json.MarshalIndent(batch, "", "  ")
 	if err != nil {
 		log.Printf("[ERROR] Failed to marshal batch: %v\n", err)
@@ -617,3 +627,58 @@ func (m *Monitor) tailLogFileWithOffsetAndActivity(ctx context.Context, path str
 		}
 	}
 }
+
+// --- PII Scrubber ---
+// scrubPII redacts emails, IP addresses, environment settings, and wallet addresses from a MetricEvent (recursively)
+func scrubPII(event *MetricEvent) {
+	// Regex patterns
+	emailRegex := regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`)
+	ipRegex := regexp.MustCompile(`\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b`)
+	walletRegex := regexp.MustCompile(`0x[a-fA-F0-9]{40}`)
+	envVarRegex := regexp.MustCompile(`(?i)(API_KEY|SECRET|PASSWORD|TOKEN|JWT|PRIVATE_KEY|ENV|CONFIG|DATABASE_URL|DB_PASS|ACCESS_KEY|SECRET_KEY)=[^\s]+`)
+	// Serial numbers and device IDs (UUID, GUID, HWID, etc.)
+	serialRegex := regexp.MustCompile(`(?i)(serial|device[_-]?id|uuid|guid|hwid|cpuid|gpuid)[\s:=]+[a-zA-Z0-9\-]{6,}`)
+	// Generic long hex strings (potential device IDs)
+	longHexRegex := regexp.MustCompile(`\b[a-fA-F0-9]{16,}\b`)
+
+	event.Details = scrubMap(event.Details, emailRegex, ipRegex, walletRegex, envVarRegex, serialRegex, longHexRegex)
+}
+
+func scrubMap(m map[string]interface{}, regexes ...*regexp.Regexp) map[string]interface{} {
+	for k, v := range m {
+		switch val := v.(type) {
+		case string:
+			for _, re := range regexes {
+				if re.MatchString(val) {
+					val = re.ReplaceAllString(val, "[REDACTED]")
+				}
+			}
+			m[k] = val
+		case map[string]interface{}:
+			m[k] = scrubMap(val, regexes...)
+		case []interface{}:
+			m[k] = scrubSlice(val, regexes...)
+		}
+	}
+	return m
+}
+
+func scrubSlice(arr []interface{}, regexes ...*regexp.Regexp) []interface{} {
+	for i, v := range arr {
+		switch val := v.(type) {
+		case string:
+			for _, re := range regexes {
+				if re.MatchString(val) {
+					val = re.ReplaceAllString(val, "[REDACTED]")
+				}
+			}
+			arr[i] = val
+		case map[string]interface{}:
+			arr[i] = scrubMap(val, regexes...)
+		case []interface{}:
+			arr[i] = scrubSlice(val, regexes...)
+		}
+	}
+	return arr
+}
+// --- END PII Scrubber ---

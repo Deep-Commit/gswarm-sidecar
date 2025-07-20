@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -115,23 +116,30 @@ func (m *Monitor) collectCPUMetrics() map[string]interface{} {
 		return nil
 	}
 
-	// Get CPU info for core count
+	// Get CPU info for core count - use a more robust approach
+	coreCount := 0
 	cpuInfo, err := cpu.Info()
 	if err != nil {
-		log.Printf("Failed to get CPU info: %v", err)
-		return nil
+		// On macOS, try alternative method to get core count
+		log.Printf("Failed to get CPU info via gopsutil: %v", err)
+		// Try to get core count via runtime
+		coreCount = runtime.NumCPU()
+		log.Printf("Using runtime.NumCPU(): %d cores", coreCount)
+	} else {
+		coreCount = len(cpuInfo)
 	}
 
 	// Get load average
 	loadAvg, err := load.Avg()
 	if err != nil {
 		log.Printf("Failed to get load average: %v", err)
-		return nil
+		// Don't fail completely, just set load average to zeros
+		loadAvg = &load.AvgStat{Load1: 0, Load5: 0, Load15: 0}
 	}
 
 	return map[string]interface{}{
 		"percent":   cpuPercent[0],
-		"cores":     len(cpuInfo),
+		"cores":     coreCount,
 		"load_avg":  []float64{loadAvg.Load1, loadAvg.Load5, loadAvg.Load15},
 	}
 }
